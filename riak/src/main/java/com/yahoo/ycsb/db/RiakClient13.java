@@ -2,22 +2,14 @@ package com.yahoo.ycsb.db;
 
 import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.builders.RiakObjectBuilder;
-import com.basho.riak.client.query.indexes.IntIndex;
 import com.basho.riak.client.raw.RawClient;
 import com.basho.riak.client.raw.RiakResponse;
 import com.basho.riak.client.raw.pbc.PBClientAdapter;
 import com.basho.riak.client.raw.pbc.PBClientConfig;
 import com.basho.riak.client.raw.pbc.PBClusterClientFactory;
 import com.basho.riak.client.raw.pbc.PBClusterConfig;
-import com.basho.riak.client.raw.query.indexes.IndexQuery;
-import com.basho.riak.client.raw.query.indexes.IntRangeQuery;
 import com.basho.riak.pbc.RiakClient;
-import com.yahoo.ycsb.ByteIterator;
-import com.yahoo.ycsb.DB;
-import com.yahoo.ycsb.DBException;
-import com.yahoo.ycsb.StringByteIterator;
-import com.yahoo.ycsb.db.serializers.RiakSerializer;
-
+import com.yahoo.ycsb.*;
 import java.io.IOException;
 import java.util.*;
 
@@ -25,7 +17,6 @@ import static com.yahoo.ycsb.db.Constants.*;
 
 public class RiakClient13 extends DB {
     private RawClient rawClient;
-    private RiakSerializer serializer = null;
     private boolean use2i = false;
     private static int connectionNumber = 0;
 
@@ -44,11 +35,11 @@ public class RiakClient13 extends DB {
             Properties props = getProperties();
             use2i = Boolean.parseBoolean(props.getProperty(RIAK_USE_2I, RIAK_USE_2I_DEFAULT));
             String serializerName = props.getProperty(RIAK_SERIALIZER, RIAK_DEFAULT_SERIALIZER);
-            serializer = (RiakSerializer)Class.forName(serializerName).newInstance();
             String cluster_hosts = props.getProperty(RIAK_CLUSTER_HOSTS, RIAK_CLUSTER_HOST_DEFAULT);
             String[] servers = cluster_hosts.split(",");
-            boolean useConnectionPool = true;
-            if(props.containsKey(RIAK_POOL_ENABLED)) {
+            boolean useConnectionPool = false;
+            if(props.containsKey(RIAK_POOL_ENABLED)
+                    && props.getProperty(RIAK_POOL_ENABLED).equalsIgnoreCase("true")) {
                 String usePool = props.getProperty(RIAK_POOL_ENABLED);
                 useConnectionPool = Boolean.parseBoolean(usePool);
             }
@@ -121,14 +112,15 @@ public class RiakClient13 extends DB {
         rawClient.shutdown();
     }
 
-    public int read(String bucket, String key, Set<String> fields,
+    public int read(String table, String key, Set<String> fields,
                     HashMap<String, ByteIterator> result) {
         try {
-            RiakResponse response = rawClient.fetch(bucket, key);
-            if(response.hasValue()) {
-                // TODO: conflict resolver
-                IRiakObject obj = response.getRiakObjects()[0];
-                serializer.documentFromRiak(obj, fields, result);
+            for(String k : fields) {
+                RiakResponse response = rawClient.fetch(table + ":" + key, k);
+                if(response.hasValue()) {
+                    IRiakObject obj = response.getRiakObjects()[0];
+                    result.put(k, new ByteArrayByteIterator(obj.getValue()));
+                }
             }
         } catch(Exception e) {
             e.printStackTrace();
@@ -137,83 +129,31 @@ public class RiakClient13 extends DB {
         return OK;
     }
 
-    public int scan(String bucket, String startkey, int recordcount,
+    public int scan(String table, String startkey, int recordcount,
                     Set<String> fields, Vector<HashMap<String, ByteIterator>> result) {
-        if(use2i) {
-            try {
-                RiakResponse fetchResp = rawClient.fetch(bucket, startkey);
-                Set<Long> idx = fetchResp.getRiakObjects()[0].getIntIndexV2(YCSB_INT);
-                if(idx.size() == 0) {
-                    System.err.println("Index not found");
-                    return ERROR;
-                } else {
-                    Long id = idx.iterator().next();
-                    long range = id + recordcount;
-                    IndexQuery iq = new IntRangeQuery(IntIndex.named(YCSB_INT), bucket, id, range);
-                    List<String> results = rawClient.fetchIndex(iq);
-                    for(String key: results) {
-                        RiakResponse resp = rawClient.fetch(bucket, key);
-                        HashMap<String, ByteIterator> rowResult = new HashMap<String, ByteIterator>();
-                                serializer.rowFromRiakScan(resp.getRiakObjects()[0], fields, rowResult);
-                        result.add(rowResult);
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-                return ERROR;
-            }
-            return OK;
-        } else {
-            return ERROR;
-        }
+        return ERROR;
     }
 
-    public int update(String bucket, String key,
+    public int update(String table, String key,
+                      HashMap<String, ByteIterator> values) {
+        insert(table, key, values);
+        return OK;
+    }
+
+    public int insert(String table, String key,
                       HashMap<String, ByteIterator> values) {
         try {
-            RiakResponse response = rawClient.fetch(bucket, key);
-            if(response.hasValue()) {
-                // TODO: conflict resolver
-                IRiakObject obj = response.getRiakObjects()[0];
-                byte[] data = serializer.updateDocumentFromRiak(obj, values);
+            for(String k: values.keySet()) {
                 RiakObjectBuilder builder =
-                        RiakObjectBuilder.newBuilder(bucket, key)
-                                .withContentType(CONTENT_TYPE_JSON_UTF8)
-                                .withValue(data)
-                                .withVClock(response.getVclock());
+                        RiakObjectBuilder.newBuilder(table + ":" + key, k)
+                                .withContentType("application/octet-stream")
+                        .withValue(values.get(k).toString());
                 rawClient.store(builder.build());
             }
         } catch (Exception e) {
             e.printStackTrace();
             return ERROR;
         }
-        return OK;
-    }
-
-    public int insert(String bucket, String key,
-                      HashMap<String, ByteIterator> values) {
-        RiakObjectBuilder builder =
-                RiakObjectBuilder.newBuilder(bucket, key)
-                                 .withContentType(CONTENT_TYPE_JSON_UTF8);
-        try {
-            byte[] rawValue = serializer.documentToRiak(values);
-            RiakObjectBuilder objBuilder = builder.withValue(rawValue);
-            if(use2i) {
-                    long idxValue = 0;
-                    if(!bucketIndexes.containsKey(bucket)) {
-                        bucketIndexes.put(bucket, (long)0);
-                    } else {
-                        idxValue = bucketIndexes.get(bucket);
-                        bucketIndexes.put(bucket, idxValue+1);
-                    }
-                    objBuilder.addIndex(YCSB_INT, idxValue).build();
-            }
-            rawClient.store(objBuilder.build());
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ERROR;
-        }
-
         return OK;
     }
 
