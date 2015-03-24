@@ -267,16 +267,16 @@ public final class RiakDBClient extends DB {
 				FileInputStream propertyFile = new FileInputStream(f);
 				defaultProps.load(propertyFile);
 				propertyFile.close();
-				
-				nodesArray = defaultProps.getProperty("NODES", "127.0.0.1").split(",");
+
 				bucketType = defaultProps.getProperty("DEFAULT_BUCKET_TYPE", "ycsb");
+				nodesArray = defaultProps.getProperty("NODES", "127.0.0.1").split(",");
 				rvalue = Integer.parseInt(defaultProps.getProperty("R_VALUE", "2"));
 				wvalue = Integer.parseInt( defaultProps.getProperty("W_VALUE", "2") );
 				prvalue = Integer.parseInt(defaultProps.getProperty("PR_VALUE", "0"));
 				pwvalue = Integer.parseInt(defaultProps.getProperty("PW_VALUE", "0"));
 				readRetryCount = Integer.parseInt(defaultProps.getProperty("READ_RETRY_COUNT", "5"));
 				System.out.println("===Test parameters==");
-				System.out.println("nodesArray=[" + nodesArray + "]");
+				System.out.println("nodesArray=[" + Arrays.asList(nodesArray) + "]");
 				System.out.println("bucketType=[" + bucketType + "]");
 				System.out.println("rvalue=[" + rvalue + "]");
 				System.out.println("wvalue=[" + wvalue + "]");
