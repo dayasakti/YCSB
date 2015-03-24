@@ -66,6 +66,8 @@ public final class RiakDBClient extends DB {
 	
 	private int rvalue = 2;
 	private int wvalue = 2;
+    private int prvalue = 0;
+    private int pwvalue = 0;
 	private int readRetryCount = 5;
 	
 	private RiakClient riakClient;
@@ -85,9 +87,14 @@ public final class RiakDBClient extends DB {
 	public int read(String table, String key, Set<String> fields, HashMap<String, ByteIterator> result) {
         try {
         	final Location location = new Location(new Namespace(bucketType, table), key);
-            final FetchValue fv = new FetchValue.Builder(location)
-            	.withOption(FetchValue.Option.R, new Quorum(rvalue))
-            	.build();
+            final FetchValue.Builder fvBuilder = new FetchValue.Builder(location);
+			if (prvalue > 0){
+				fvBuilder.withOption(FetchValue.Option.PR, new Quorum(prvalue));
+			}else{
+				fvBuilder.withOption(FetchValue.Option.R, new Quorum(rvalue));
+			}
+
+			final FetchValue fv = fvBuilder.build();
             final FetchValue.Response response = fetch(fv);
             if (response.isNotFound()) {
             	return 1;
@@ -181,10 +188,14 @@ public final class RiakDBClient extends DB {
             final RiakObject object = new RiakObject();
             object.setValue(BinaryValue.create(serializeTable(values)));
             object.getIndexes().getIndex(LongIntIndex.named("key_int")).add(getKeyAsLong(key));
-            StoreValue store = new StoreValue.Builder(object)
-            	.withLocation(location)
-                .withOption(Option.W, new Quorum(wvalue))
-                .build();
+            final StoreValue.Builder storeBuilder = new StoreValue.Builder(object)
+            	.withLocation(location);
+			if (pwvalue > 0){
+				storeBuilder.withOption(Option.PW, new Quorum(pwvalue));
+			}else{
+				storeBuilder.withOption(Option.W, new Quorum(wvalue));
+			}
+			final StoreValue store = storeBuilder.build();
             riakClient.execute(store);
             return 0;
         } 
@@ -193,8 +204,7 @@ public final class RiakDBClient extends DB {
             return 1;
         }
 	}
-	
-	
+
 	/**
 	 * Update a record in the database. Any field/value pairs in the specified values 
 	 * HashMap will be written into the record with the specified
@@ -259,10 +269,22 @@ public final class RiakDBClient extends DB {
 				propertyFile.close();
 				
 				nodesArray = defaultProps.getProperty("NODES", "127.0.0.1").split(",");
-				bucketType = defaultProps.getProperty("DEFAULT_BUCKET_TYPE","ycsb");
-				rvalue = Integer.parseInt( defaultProps.getProperty("R_VALUE", "2") );
+				bucketType = defaultProps.getProperty("DEFAULT_BUCKET_TYPE", "ycsb");
+				rvalue = Integer.parseInt(defaultProps.getProperty("R_VALUE", "2"));
 				wvalue = Integer.parseInt( defaultProps.getProperty("W_VALUE", "2") );
-				readRetryCount = Integer.parseInt( defaultProps.getProperty("READ_RETRY_COUNT", "5") );			
+				prvalue = Integer.parseInt(defaultProps.getProperty("PR_VALUE", "0"));
+				pwvalue = Integer.parseInt(defaultProps.getProperty("PW_VALUE", "0"));
+				readRetryCount = Integer.parseInt(defaultProps.getProperty("READ_RETRY_COUNT", "5"));
+				System.out.println("===Test parameters==");
+				System.out.println("nodesArray=[" + nodesArray + "]");
+				System.out.println("bucketType=[" + bucketType + "]");
+				System.out.println("rvalue=[" + rvalue + "]");
+				System.out.println("wvalue=[" + wvalue + "]");
+				System.out.println("prvalue=[" + prvalue + "]");
+				System.out.println("pwvalue=[" + pwvalue + "]");
+				System.out.println("readRetryCount=[" + readRetryCount + "]");
+			} else {
+				System.out.println("Property file [" + f + "] cannot be loaded (file not readable)");
 			}
 		}
 		catch (Exception e) {
