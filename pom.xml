@@ -45,7 +45,8 @@
   <properties>
     <maven.assembly.version>2.2.1</maven.assembly.version>
     <hbase.version>0.92.1</hbase.version>
-    <cassandra.version>0.7.0</cassandra.version>
+    <cassandra.version>2.0.13</cassandra.version>
+    <cassandra.cql.version>2.1.5</cassandra.cql.version>
     <infinispan.version>7.1.0.CR1</infinispan.version>
     <openjpa.jdbc.version>2.1.1</openjpa.jdbc.version>
     <mapkeeper.version>1.0</mapkeeper.version>
@@ -63,19 +64,19 @@
 		<!--module>build-tools</module -->
 		<module>cassandra</module>
 		<module>core</module>
-		<module>hbase</module>
-		<module>hypertable</module>
-		<module>dynamodb</module>
-		<module>elasticsearch</module>
+		<!--module>hbase</module-->
+		<!--module>hypertable</module -->
+		<!--module>dynamodb</module -->
+		<!--module>elasticsearch</module -->
 		<!--<module>gemfire</module> -->
-		<module>infinispan</module>
+		<!--module>infinispan</module -->
 		<module>jdbc</module>
-		<module>mapkeeper</module>
-		<module>mongodb</module>
-		<module>orientdb</module>
+		<!--module>mapkeeper</module -->
+		<!--module>mongodb</module -->
+		<!--module>orientdb</module -->
 		<!--module>nosqldb</module -->
-		<module>redis</module>
-		<module>voldemort</module>
+		<!--module>redis</module -->
+		<!--module>voldemort</module -->
 		<module>riak</module>
 		<module>distribution</module>
 	</modules>

@@ -7,4 +7,5 @@ test-output
 target
 .settings
 *.config
-
+.idea/
+*.iml
