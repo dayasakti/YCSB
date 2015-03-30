@@ -43,6 +43,7 @@ DATABASES = {
     "redis"        : "com.yahoo.ycsb.db.RedisClient", 
     "voldemort"    : "com.yahoo.ycsb.db.VoldemortClient", 
     "riak"         : "com.yahoo.ycsb.db.RiakDBClient"
+    "spymemcached" : "com.yahoo.ycsb.db.SpymemcachedClient"
 }
 
 OPTIONS = {

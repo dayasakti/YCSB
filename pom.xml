@@ -78,6 +78,7 @@
 		<!--module>redis</module -->
 		<!--module>voldemort</module -->
 		<module>riak</module>
+        <module>spymemcached</module>
 		<module>distribution</module>
 	</modules>
 
