@@ -18,10 +18,13 @@
 package com.yahoo.ycsb.db;
 
 import com.datastax.driver.core.*;
+import com.datastax.driver.core.exceptions.NoHostAvailableException;
 import com.datastax.driver.core.querybuilder.Insert;
 import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.querybuilder.Select;
 import com.yahoo.ycsb.*;
+
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
 import java.util.Map;
@@ -107,7 +110,7 @@ public class CassandraCQLClient extends DB {
                     throw new DBException("Required property \"host\" missing for CassandraClient");
                 }
                 String hosts[] = host.split(" ");
-                String port = getProperties().getProperty("port", "9160");
+                String port = getProperties().getProperty("port", "9042");
                 if (port == null) {
                     throw new DBException("Required property \"port\" missing for CassandraClient");
                 }
@@ -123,37 +126,42 @@ public class CassandraCQLClient extends DB {
                 // public void connect(String node) {}
                 if ((username != null) && !username.isEmpty()) {
                     cluster = Cluster.builder()
-                        .withCredentials(username, password)
-                        .withPort(Integer.valueOf(port))
-                        .addContactPoints(hosts).build();
-                }
-                else {
+                            .withCredentials(username, password)
+                            .withPort(Integer.valueOf(port))
+                            .addContactPoints(hosts).build();
+                } else {
                     cluster = Cluster.builder()
-                        .withPort(Integer.valueOf(port))
-                        .addContactPoints(hosts).build();
+                            .withPort(Integer.valueOf(port))
+                            .addContactPoints(hosts).build();
                 }
 
                 //Update number of connections based on threads
-                int threadcount = Integer.parseInt(getProperties().getProperty("threadcount","1"));
+                int threadcount = Integer.parseInt(getProperties().getProperty("threadcount", "8"));
                 cluster.getConfiguration().getPoolingOptions().setMaxConnectionsPerHost(HostDistance.LOCAL, threadcount);
 
                 //Set connection timeout 3min (default is 5s)
-                cluster.getConfiguration().getSocketOptions().setConnectTimeoutMillis(3*60*1000);
+                cluster.getConfiguration().getSocketOptions().setConnectTimeoutMillis(3 * 60 * 1000);
                 //Set read (execute) timeout 3min (default is 12s)
-                cluster.getConfiguration().getSocketOptions().setReadTimeoutMillis(3*60*1000);
+                cluster.getConfiguration().getSocketOptions().setReadTimeoutMillis(3 * 60 * 1000);
 
                 Metadata metadata = cluster.getMetadata();
                 System.out.printf("Connected to cluster: %s\n", metadata.getClusterName());
 
                 for (Host discoveredHost : metadata.getAllHosts()) {
                     System.out.printf("Datacenter: %s; Host: %s; Rack: %s\n",
-                        discoveredHost.getDatacenter(),
-                        discoveredHost.getAddress(),
-                        discoveredHost.getRack());
+                            discoveredHost.getDatacenter(),
+                            discoveredHost.getAddress(),
+                            discoveredHost.getRack());
                 }
-
+                System.out.println("Keyspace:[" + keyspace + "]");
+                System.out.println("readConsistencyLevel:[" + readConsistencyLevel + "]");
+                System.out.println("writeConsistencyLevel:[" + writeConsistencyLevel + "]");
                 session = cluster.connect(keyspace);
-
+            }catch (NoHostAvailableException e){
+                for(final Map.Entry<InetSocketAddress,Throwable> errorEntry:e.getErrors().entrySet()){
+                    System.out.println("Error Entry : [" + errorEntry + "]");
+                }
+                throw new DBException(e);
             } catch (Exception e) {
                 throw new DBException(e);
             }
